@@ -70,13 +70,13 @@ const App: React.FC = () => {
           {gameWon && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
               <div className="bg-white p-8 rounded-3xl shadow-2xl text-center transform scale-110 animate-bounce">
-                <h2 className="text-4xl font-black text-blue-600 mb-4">恭喜成功!</h2>
-                <p className="text-slate-600 mb-6">你已经套中了所有的圈圈！</p>
+                <h2 className="text-4xl font-black text-blue-600 mb-4">太棒了!</h2>
+                <p className="text-slate-600 mb-6">你成功的套中了所有的圈圈！</p>
                 <button 
                   onClick={handleReset}
                   className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform active:scale-95"
                 >
-                  再玩一次
+                  重新开始
                 </button>
               </div>
             </div>
@@ -98,7 +98,7 @@ const App: React.FC = () => {
             >
               <div className="w-12 h-12 rounded-full border-4 border-red-300 opacity-50" />
             </button>
-            <span className="text-white font-bold text-sm tracking-wider opacity-80">喷气</span>
+            <span className="text-white font-bold text-sm tracking-wider opacity-80 uppercase">左喷射</span>
           </div>
 
           {/* Right Button */}
@@ -114,7 +114,7 @@ const App: React.FC = () => {
             >
               <div className="w-12 h-12 rounded-full border-4 border-yellow-300 opacity-50" />
             </button>
-            <span className="text-white font-bold text-sm tracking-wider opacity-80">喷气</span>
+            <span className="text-white font-bold text-sm tracking-wider opacity-80 uppercase">右喷射</span>
           </div>
         </div>
 
@@ -127,9 +127,9 @@ const App: React.FC = () => {
       </div>
 
       {/* Instructions */}
-      <div className="mt-8 text-slate-400 text-center max-w-md">
-        <p className="font-semibold text-white mb-2 underline">游戏玩法</p>
-        <p className="text-sm">点击红色或黄色按钮产生水流。控制小圈圈，让它们全部套入两根针中！</p>
+      <div className="mt-8 text-slate-400 text-center max-w-md px-4">
+        <p className="font-semibold text-white mb-2 underline">游玩指南</p>
+        <p className="text-sm">使用两侧的按钮喷射水流，调整重力和圈圈的动态。尽量让所有圈圈落入细针吧！</p>
       </div>
     </div>
   );
