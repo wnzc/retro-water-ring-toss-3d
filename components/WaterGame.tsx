@@ -5,22 +5,22 @@ import * as THREE from 'three';
 interface WaterGameProps {
   leftActive: boolean;
   rightActive: boolean;
+  onWin?: () => void;
 }
 
 // Physics Constants
-const RING_COUNT = 12;
-const GRAVITY = -0.005; 
-const BUOYANCY = 0.0028; 
-const WATER_DRAG = 0.95; 
-const PUSH_FORCE = 0.015; 
-const ROTATION_DRAG = 0.97;
+const RING_COUNT = 8; // 稍微减少数量提升可玩性，避免过度拥挤
+const GRAVITY = -0.0035; 
+const BUOYANCY = 0.0032; 
+const WATER_DRAG = 0.94; 
+const PUSH_FORCE = 0.016; 
+const ROTATION_DRAG = 0.96;
 const TANK_SIZE = 10;
 const NEEDLE_RADIUS = 0.12;
-const NEEDLE_HEIGHT = 5.2;
-const RING_RADIUS = 0.55; 
-const RING_THICKNESS = 0.14;
-// Collision radius is the full diameter of the ring torus volume
-const COLLISION_RADIUS = RING_RADIUS + RING_THICKNESS;
+const NEEDLE_HEIGHT = 5.5;
+const RING_RADIUS = 0.52; 
+const RING_THICKNESS = 0.15;
+const COLLISION_RADIUS = (RING_RADIUS + RING_THICKNESS) * 1.1;
 
 interface RingState {
   mesh: THREE.Mesh;
@@ -30,8 +30,9 @@ interface RingState {
   hookedTo: 'left' | 'right' | null;
 }
 
-const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
+const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive, onWin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const winTriggeredRef = useRef(false);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
@@ -45,7 +46,6 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // --- Scene Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xb3e5fc);
 
@@ -58,59 +58,44 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
     renderer.setPixelRatio(window.devicePixelRatio);
     containerRef.current.appendChild(renderer.domElement);
 
-    // --- Lighting ---
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0xffffff, 1.2);
+    const pointLight = new THREE.PointLight(0xffffff, 1.5);
     pointLight.position.set(5, 10, 15);
     scene.add(pointLight);
 
-    // --- Needles & Bases ---
     const needleGeo = new THREE.CylinderGeometry(NEEDLE_RADIUS, NEEDLE_RADIUS, NEEDLE_HEIGHT, 16);
-    const needleMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 120 });
-    
-    const baseGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.4, 24);
-    const baseMat = new THREE.MeshPhongMaterial({ color: 0xcccccc, shininess: 40 });
+    const needleMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 150 });
+    const baseGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.5, 24);
+    const baseMat = new THREE.MeshPhongMaterial({ color: 0xdddddd, shininess: 60 });
 
     const createNeedleWithBase = (x: number) => {
       const group = new THREE.Group();
-      
       const needle = new THREE.Mesh(needleGeo, needleMat);
       needle.position.y = NEEDLE_HEIGHT / 2;
       group.add(needle);
-
       const base = new THREE.Mesh(baseGeo, baseMat);
       base.position.y = 0;
       group.add(base);
-
       group.position.set(x, -3.8, 0);
       return group;
     };
 
-    const leftNeedleGroup = createNeedleWithBase(-2.5);
-    scene.add(leftNeedleGroup);
+    scene.add(createNeedleWithBase(-2.5));
+    scene.add(createNeedleWithBase(2.5));
 
-    const rightNeedleGroup = createNeedleWithBase(2.5);
-    scene.add(rightNeedleGroup);
-
-    // --- Rings ---
     const rings: RingState[] = [];
-    const ringColors = [0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff, 0x44ffff, 0xffa500, 0x800080, 0xff8888, 0x88ff88, 0x8888ff, 0x333333];
+    const ringColors = [0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff, 0x44ffff, 0xffa500, 0x800080];
     
     for (let i = 0; i < RING_COUNT; i++) {
-      const ringGeo = new THREE.TorusGeometry(RING_RADIUS, RING_THICKNESS, 12, 32);
-      const ringMat = new THREE.MeshPhongMaterial({ 
-        color: ringColors[i % ringColors.length],
-        shininess: 90,
-        specular: 0x111111 
-      });
+      const ringGeo = new THREE.TorusGeometry(RING_RADIUS, RING_THICKNESS, 16, 32);
+      const ringMat = new THREE.MeshPhongMaterial({ color: ringColors[i % ringColors.length], shininess: 100 });
       const ringMesh = new THREE.Mesh(ringGeo, ringMat);
       
-      // Better initial spread
       ringMesh.position.set(
         (Math.random() - 0.5) * 8,
-        -3 + (Math.random() - 0.5) * 2,
+        -2 + (Math.random() - 0.5) * 2,
         (Math.random() - 0.5) * 1.5
       );
       ringMesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
@@ -120,23 +105,21 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
         mesh: ringMesh,
         velocity: new THREE.Vector3(),
         angularVelocity: new THREE.Vector3(
-          (Math.random() - 0.5) * 0.04,
-          (Math.random() - 0.5) * 0.04,
-          (Math.random() - 0.5) * 0.04
+          (Math.random() - 0.5) * 0.05,
+          (Math.random() - 0.5) * 0.05,
+          (Math.random() - 0.5) * 0.05
         ),
         isHooked: false,
         hookedTo: null
       });
     }
 
-    // --- Bubbles ---
     const bubbles: THREE.Mesh[] = [];
     const bubbleGeo = new THREE.SphereGeometry(0.12, 8, 8);
     const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
 
     sceneRef.current = { scene, camera, renderer, rings, bubbles, leftActive: false, rightActive: false };
 
-    // --- Animation Loop ---
     let animationId: number;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
@@ -144,11 +127,13 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
 
       const { rings, leftActive, rightActive, bubbles } = sceneRef.current;
 
+      let hookedCount = 0;
+
       rings.forEach((ring, idx) => {
         if (ring.isHooked) {
-          // Hooked logic
+          hookedCount++;
           const targetX = ring.hookedTo === 'left' ? -2.5 : 2.5;
-          const baseY = -3.4; // Height of the needle base top
+          const baseY = -3.4; 
           
           ring.mesh.position.x += (targetX - ring.mesh.position.x) * 0.15;
           ring.mesh.position.z += (0 - ring.mesh.position.z) * 0.15;
@@ -156,9 +141,9 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
           let floorY = baseY;
           rings.forEach((other, otherIdx) => {
             if (otherIdx !== idx && other.isHooked && other.hookedTo === ring.hookedTo) {
-              // If other is directly below this ring
-              if (other.mesh.position.y < ring.mesh.position.y + 0.01) {
-                floorY = Math.max(floorY, other.mesh.position.y + (RING_THICKNESS * 2.2));
+              const dist = ring.mesh.position.y - other.mesh.position.y;
+              if (dist > -0.1 && dist < RING_THICKNESS * 2.5) {
+                floorY = Math.max(floorY, other.mesh.position.y + RING_THICKNESS * 2.1);
               }
             }
           });
@@ -170,31 +155,26 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
             ring.velocity.set(0, 0, 0);
           }
 
-          // Orient flat
-          ring.mesh.rotation.x += (Math.PI / 2 - ring.mesh.rotation.x) * 0.1;
-          ring.mesh.rotation.y *= 0.85;
-          ring.mesh.rotation.z *= 0.85;
+          ring.mesh.rotation.x += (Math.PI / 2 - ring.mesh.rotation.x) * 0.12;
+          ring.mesh.rotation.y *= 0.8;
+          ring.mesh.rotation.z *= 0.8;
           return;
         }
 
-        // Apply Forces for free rings
         const force = new THREE.Vector3(0, GRAVITY + BUOYANCY, 0);
 
         if (leftActive || rightActive) {
           const vortex = new THREE.Vector3();
           if (leftActive) {
-             vortex.set(ring.mesh.position.y * 0.4, -ring.mesh.position.x * 0.4, 0).normalize().multiplyScalar(PUSH_FORCE);
+             vortex.set(ring.mesh.position.y * 0.35, -ring.mesh.position.x * 0.35, 0).normalize().multiplyScalar(PUSH_FORCE);
           } else {
-             vortex.set(-ring.mesh.position.y * 0.4, ring.mesh.position.x * 0.4, 0).normalize().multiplyScalar(PUSH_FORCE);
+             vortex.set(-ring.mesh.position.y * 0.35, ring.mesh.position.x * 0.35, 0).normalize().multiplyScalar(PUSH_FORCE);
           }
           force.add(vortex);
-
-          // Turbulence
-          force.x += (Math.random() - 0.5) * 0.003;
-          force.y += (Math.random() - 0.5) * 0.003;
-
-          ring.angularVelocity.x += (Math.random() - 0.5) * 0.008;
-          ring.angularVelocity.y += (Math.random() - 0.5) * 0.008;
+          force.x += (Math.random() - 0.5) * 0.004;
+          force.y += (Math.random() - 0.5) * 0.004;
+          ring.angularVelocity.x += (Math.random() - 0.5) * 0.01;
+          ring.angularVelocity.y += (Math.random() - 0.5) * 0.01;
         }
 
         ring.velocity.add(force);
@@ -206,33 +186,28 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
         ring.mesh.rotation.y += ring.angularVelocity.y;
         ring.mesh.rotation.z += ring.angularVelocity.z;
 
-        // --- Improved Collision Logic ---
+        // --- Ring Collision ---
         for (let j = idx + 1; j < rings.length; j++) {
           const other = rings[j];
           if (other.isHooked) continue;
 
           const diff = new THREE.Vector3().subVectors(ring.mesh.position, other.mesh.position);
           const distance = diff.length();
-          // Use a slightly larger collision bubble to prevent visual overlap
-          const minDistance = COLLISION_RADIUS * 1.8;
+          const minDistance = COLLISION_RADIUS * 1.5;
 
           if (distance < minDistance) {
-            // Push apart proportional to depth of overlap (spring force)
             const overlap = minDistance - distance;
             const pushDir = diff.normalize();
-            const pushMagnitude = overlap * 0.2; // Strength of repulsion
+            const push = pushDir.clone().multiplyScalar(overlap * 0.3);
+            ring.mesh.position.add(push);
+            other.mesh.position.sub(push);
             
-            ring.mesh.position.addScaledVector(pushDir, pushMagnitude);
-            other.mesh.position.addScaledVector(pushDir, -pushMagnitude);
-            
-            // Velocity transfer
-            const relativeVelocity = new THREE.Vector3().subVectors(ring.velocity, other.velocity);
-            const velocityDot = relativeVelocity.dot(pushDir);
-            
-            if (velocityDot < 0) {
-               const impulse = pushDir.multiplyScalar(velocityDot * 0.5);
-               ring.velocity.sub(impulse);
-               other.velocity.add(impulse);
+            const vRel = new THREE.Vector3().subVectors(ring.velocity, other.velocity);
+            const dot = vRel.dot(pushDir);
+            if (dot < 0) {
+              const impulse = pushDir.multiplyScalar(dot * 0.6);
+              ring.velocity.sub(impulse);
+              other.velocity.add(impulse);
             }
           }
         }
@@ -240,45 +215,38 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
         // --- Boundary Check ---
         const hX = TANK_SIZE / 2 - RING_RADIUS;
         const hY = TANK_SIZE / 2 - RING_RADIUS;
-        const hZ = 1.3 - RING_THICKNESS;
+        const hZ = 1.4 - RING_THICKNESS;
 
         if (Math.abs(ring.mesh.position.x) > hX) {
           ring.mesh.position.x = Math.sign(ring.mesh.position.x) * hX;
-          ring.velocity.x *= -0.3;
+          ring.velocity.x *= -0.4;
         }
         if (Math.abs(ring.mesh.position.y) > hY) {
           ring.mesh.position.y = Math.sign(ring.mesh.position.y) * hY;
-          ring.velocity.y *= -0.3;
+          ring.velocity.y *= -0.4;
         }
         if (Math.abs(ring.mesh.position.z) > hZ) {
           ring.mesh.position.z = Math.sign(ring.mesh.position.z) * hZ;
-          ring.velocity.z *= -0.3;
+          ring.velocity.z *= -0.4;
         }
 
-        // --- Hooking Logic (Refined) ---
+        // --- Hooking Logic ---
         [-2.5, 2.5].forEach((nx, nidx) => {
           const side = nidx === 0 ? 'left' : 'right';
           const dx = ring.mesh.position.x - nx;
           const dz = ring.mesh.position.z;
           const distToAxis = Math.sqrt(dx * dx + dz * dz);
-          const needleTopY = 1.4;
+          const needleTopY = 1.7; 
           const needleBottomY = -3.8;
 
-          // A ring is hooked if:
-          // 1. Its center is close to the needle's axis
-          // 2. It is vertically within the needle's reachable height
-          // 3. It is relatively horizontal (allowing some slant as per request)
-          const isNearAxis = distToAxis < (NEEDLE_RADIUS + 0.2); // Slightly more generous radius
+          const isNearAxis = distToAxis < (NEEDLE_RADIUS + RING_RADIUS * 0.45); 
           const isInYRange = ring.mesh.position.y < needleTopY && ring.mesh.position.y > needleBottomY;
-          
-          // Allow up to ~55 degrees of tilt (0.95 radians)
-          const currentRotationX = Math.abs(ring.mesh.rotation.x % Math.PI);
-          const isHorizontalEnough = Math.abs(currentRotationX - Math.PI/2) < 0.95;
+          const rotX = Math.abs(ring.mesh.rotation.x % Math.PI);
+          const isThreadableAngle = Math.abs(rotX - Math.PI/2) < 1.35;
 
-          if (isNearAxis && isInYRange && isHorizontalEnough) {
-            // Check probability or just snap if it's very close
-            // If it's very close to axis, it should "thread"
-            if (distToAxis < (NEEDLE_RADIUS + 0.1) || Math.random() < 0.15) {
+          if (isNearAxis && isInYRange && isThreadableAngle) {
+            const isFalling = ring.velocity.y < 0;
+            if (isFalling || distToAxis < NEEDLE_RADIUS || Math.random() < 0.1) {
               ring.isHooked = true;
               ring.hookedTo = side as 'left' | 'right';
               ring.velocity.set(0, 0, 0);
@@ -288,19 +256,24 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
         });
       });
 
-      // Bubbles
-      if ((leftActive || rightActive) && Math.random() < 0.25) {
+      // Win Condition Check
+      if (hookedCount === RING_COUNT && !winTriggeredRef.current) {
+        winTriggeredRef.current = true;
+        onWin?.();
+      }
+
+      if ((leftActive || rightActive) && Math.random() < 0.3) {
         const b = new THREE.Mesh(bubbleGeo, bubbleMat.clone());
-        const sX = leftActive ? -4.3 : 4.3;
-        b.position.set(sX, -4.8, (Math.random() - 0.5) * 2.5);
+        const sX = leftActive ? -4.5 : 4.5;
+        b.position.set(sX, -4.8, (Math.random() - 0.5) * 3);
         scene.add(b);
         bubbles.push(b);
       }
       for (let i = bubbles.length - 1; i >= 0; i--) {
         const b = bubbles[i];
-        b.position.y += 0.15;
-        b.position.x += (Math.random() - 0.5) * 0.05;
-        if (b.position.y > 5.5) {
+        b.position.y += 0.16;
+        b.position.x += (Math.random() - 0.5) * 0.06;
+        if (b.position.y > 6) {
           scene.remove(b);
           bubbles.splice(i, 1);
         }
@@ -327,7 +300,7 @@ const WaterGame: React.FC<WaterGameProps> = ({ leftActive, rightActive }) => {
         }
       });
     };
-  }, []);
+  }, [onWin]);
 
   useEffect(() => {
     if (sceneRef.current) {
