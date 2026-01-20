@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Water Ring Toss 3D</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #1a1a1a;
+      font-family: 'Inter', sans-serif;
+    }
+    #root {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* 模拟水流冲击时的机身微颤效果 */
+    @keyframes water-shake {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(0.6px, 0.6px) rotate(0.04deg); }
+      50% { transform: translate(-0.6px, 0.6px) rotate(-0.04deg); }
+      75% { transform: translate(0.6px, -0.6px) rotate(0.04deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+    .shaking {
+      animation: water-shake 0.07s infinite linear;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "three": "https://esm.sh/three@^0.182.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>
